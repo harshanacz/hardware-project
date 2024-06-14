@@ -26,6 +26,20 @@ Servo myServo;
 // RTC
 RTC_DS3231 rtc;
 
+// Photodiode
+const int photodiodePin = 35; // Define the pin connected to the BPW34 photodiode
+const int ledPin = 2; // Define an LED pin for testing (optional)
+
+// Define calibration points (analog readings and corresponding output values)
+const int calibrationPoints[][2] = {
+  {50, 0},        // Analog reading 50 corresponds to output 0 (new for very low light conditions)
+  {100, 500},     // Analog reading 100 corresponds to output 500
+  {500, 2500},    // Analog reading 500 corresponds to output 2500
+  {1000, 5000},   // Analog reading 1000 corresponds to output 5000
+  {1500, 7500},   // Analog reading 1500 corresponds to output 7500 (good light condition)
+  {3000, 10000}   // Analog reading 3000 corresponds to output 10000 (best light condition)
+};
+
 void setup() {
   // Start serial communication at 9600 baud
   Serial.begin(9600);
@@ -59,6 +73,10 @@ void setup() {
     Serial.println("RTC lost power, let's set the time!");
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
+
+  // Initialize the photodiode pin and LED pin
+  pinMode(photodiodePin, INPUT); // Set the photodiode pin as input
+  pinMode(ledPin, OUTPUT); // Set the LED pin as output for testing (optional)
 }
 
 void loop() {
@@ -163,6 +181,31 @@ void loop() {
     lastServoTime = millis(); // Update last servo activation time
   }
 
+  // Photodiode reading and output calculation
+  int sensorValue = analogRead(photodiodePin); // Read the analog value from the photodiode
+  int outputValue = mapSensorValue(sensorValue); // Map the sensor value to the desired output range using calibration points
+
+  digitalWrite(ledPin, HIGH); // Turn on the LED (optional, for testing)
+  delay(100); // Delay for stability
+  digitalWrite(ledPin, LOW); // Turn off the LED (optional, for testing)
+
+  // Print the output value to the serial monitor
+  Serial.print("Photodiode Output Value: ");
+  Serial.println(outputValue);
+
   // Wait 1 second before taking another reading
   delay(1000);
+}
+
+// Function to map sensor value to desired output range using calibration points
+int mapSensorValue(int sensorValue) {
+  for (int i = 0; i < sizeof(calibrationPoints) / sizeof(calibrationPoints[0]); i++) {
+    if (sensorValue <= calibrationPoints[i][0]) {
+      // Linear interpolation between calibration points
+      int outputValue = map(sensorValue, calibrationPoints[i-1][0], calibrationPoints[i][0], calibrationPoints[i-1][1], calibrationPoints[i][1]);
+      return outputValue;
+    }
+  }
+  // If sensor value exceeds the maximum calibration point, return maximum output value
+  return calibrationPoints[sizeof(calibrationPoints) / sizeof(calibrationPoints[0]) - 1][1];
 }
