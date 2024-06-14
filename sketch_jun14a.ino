@@ -1,3 +1,5 @@
+#include <Wire.h>
+#include <RTClib.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -13,6 +15,12 @@ DallasTemperature sensors(&oneWire);
 // Ultrasonic Sensor
 #define TRIG_PIN 12
 #define ECHO_PIN 13
+
+// RTC Module
+RTC_DS3231 rtc;
+const int RTC_PIN1 = 25; // 6:00 PM to 8:00 PM
+const int RTC_PIN2 = 26; // 8:00 PM to 6:00 AM
+const int RTC_PIN3 = 27; // Every 6 hours
 
 void setup() {
   // Start serial communication at 9600 baud
@@ -30,9 +38,54 @@ void setup() {
 
   // Start up the DS18B20 sensor library
   sensors.begin();
+
+  // Initialize RTC pins as outputs
+  pinMode(RTC_PIN1, OUTPUT);
+  pinMode(RTC_PIN2, OUTPUT);
+  pinMode(RTC_PIN3, OUTPUT);
+  digitalWrite(RTC_PIN1, LOW);
+  digitalWrite(RTC_PIN2, LOW);
+  digitalWrite(RTC_PIN3, LOW);
+
+  // Initialize the RTC
+  if (!rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, set the time!");
+    // rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); // Uncomment to set the RTC to the date & time this sketch was compiled
+  }
 }
 
 void loop() {
+  // RTC functionality
+  DateTime now = rtc.now();
+
+  // 6:00 PM to 8:00 PM
+  if (now.hour() >= 18 && now.hour() < 20) {
+    digitalWrite(RTC_PIN1, HIGH);
+  } else {
+    digitalWrite(RTC_PIN1, LOW);
+  }
+
+  // 8:00 PM to 6:00 AM
+  if (now.hour() >= 20 || now.hour() < 6) {
+    digitalWrite(RTC_PIN2, HIGH);
+  } else {
+    digitalWrite(RTC_PIN2, LOW);
+  }
+
+  // Every 6 hours
+  if (now.hour() % 6 == 0 && now.minute() == 0 && now.second() == 0) {
+    digitalWrite(RTC_PIN3, HIGH);
+    delay(1000); // Keep the pin high for 1 second
+  } else {
+    digitalWrite(RTC_PIN3, LOW);
+  }
+
+  // Original functionality
   // Measure water height using the ultrasonic sensor
   long duration, distance;
   digitalWrite(TRIG_PIN, LOW);
@@ -67,14 +120,14 @@ void loop() {
       // Turn off solenoid (relay 2)
       digitalWrite(RELAY2_PIN, LOW); // Turn relay 2 on (active-low)
       delayMicroseconds(1000000);
-        digitalWrite(RELAY2_PIN, HIGH);
+      digitalWrite(RELAY2_PIN, HIGH);
       solenoidActive = false;
       Serial.println("Relay 2 OFF");
       delay(200); // Add delay to prevent immediate reactivation
     }
   } else {
     // Normal operation
-    if (temperatureC > 36.0) {
+    if (temperatureC > 31.0) {
       if (distance < 40) {
         digitalWrite(RELAY1_PIN, LOW); // Turn relay 1 on (active-low)
         Serial.println("Relay 1 ON");
