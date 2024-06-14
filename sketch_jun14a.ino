@@ -2,6 +2,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <RTClib.h>
+#include <ESP32Servo.h>  // Use ESP32Servo library
 
 // DS18B20 Sensor
 #define ONE_WIRE_BUS 4
@@ -17,6 +18,10 @@ DallasTemperature sensors(&oneWire);
 // Ultrasonic Sensor
 #define TRIG_PIN 12
 #define ECHO_PIN 13
+
+// Servo Motor
+#define SERVO_PIN 27
+Servo myServo;
 
 // RTC
 RTC_DS3231 rtc;
@@ -38,6 +43,9 @@ void setup() {
   // Initialize the ultrasonic sensor pins
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+
+  // Initialize the servo motor
+  myServo.attach(SERVO_PIN);
 
   // Start up the DS18B20 sensor library
   sensors.begin();
@@ -83,6 +91,7 @@ void loop() {
   DateTime now = rtc.now();
   int currentHour = now.hour();
   int currentMinute = now.minute();
+  int currentSecond = now.second();
 
   static unsigned long lastRelay2Time = 0;
   static bool solenoidActive = false;
@@ -143,6 +152,15 @@ void loop() {
   } else {
     digitalWrite(RELAY3_PIN, HIGH); // Turn relay 3 off (active-low)
     Serial.println("Relay 3 OFF");
+  }
+
+  // Control servo motor for 2 seconds every minute
+  static unsigned long lastServoTime = 0;
+  if (currentSecond == 0 && millis() - lastServoTime > 60000) { // Check every minute
+    myServo.write(90); // Move servo to 90 degrees
+    delay(2000); // Wait for 2 seconds
+    myServo.write(0); // Move servo back to 0 degrees
+    lastServoTime = millis(); // Update last servo activation time
   }
 
   // Wait 1 second before taking another reading
