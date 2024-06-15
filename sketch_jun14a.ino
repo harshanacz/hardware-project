@@ -15,9 +15,14 @@ DallasTemperature sensors(&oneWire);
 #define RELAY3_PIN 25
 #define RELAY4_PIN 26
 
-// Ultrasonic Sensor
+// Ultrasonic Sensor 1
 #define TRIG_PIN 12
 #define ECHO_PIN 13
+
+// New Ultrasonic Sensor
+#define NEW_TRIG_PIN 14
+#define NEW_ECHO_PIN 33
+#define LED_PIN 32 // LED to be turned on when distance is less than 10 cm
 
 // Servo Motor
 #define SERVO_PIN 27
@@ -29,7 +34,7 @@ RTC_DS3231 rtc;
 // Photodiodes
 const int photodiodePin1 = 35; // Define the pin connected to the first BPW34 photodiode
 const int photodiodePin2 = 34; // Define the pin connected to the second BPW34 photodiode
-const int ledPin = 2; // Define an LED pin for testing (optional)
+const int testLedPin = 2; // Define an LED pin for testing (optional)
 
 // Define calibration points (analog readings and corresponding output values)
 const int calibrationPoints[][2] = {
@@ -64,6 +69,11 @@ void setup() {
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
+  // Initialize the new ultrasonic sensor pins
+  pinMode(NEW_TRIG_PIN, OUTPUT);
+  pinMode(NEW_ECHO_PIN, INPUT);
+  pinMode(LED_PIN, OUTPUT); // Initialize LED pin as output
+
   // Initialize the servo motor
   myServo.attach(SERVO_PIN);
 
@@ -80,10 +90,10 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
-  // Initialize the photodiode pins and LED pin
+  // Initialize the photodiode pins and test LED pin
   pinMode(photodiodePin1, INPUT); // Set the first photodiode pin as input
   pinMode(photodiodePin2, INPUT); // Set the second photodiode pin as input
-  pinMode(ledPin, OUTPUT); // Set the LED pin as output for testing (optional)
+  pinMode(testLedPin, OUTPUT); // Set the test LED pin as output (optional)
 }
 
 void loop() {
@@ -102,6 +112,31 @@ void loop() {
   Serial.print("Distance: ");
   Serial.print(distance);
   Serial.println(" cm");
+
+  // Measure distance with the new ultrasonic sensor
+  long newDuration, newDistance;
+  digitalWrite(NEW_TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(NEW_TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(NEW_TRIG_PIN, LOW);
+
+  newDuration = pulseIn(NEW_ECHO_PIN, HIGH);
+  newDistance = newDuration * 0.034 / 2;
+
+  // Print the new distance to the Serial Monitor with label "Feeder Distance:"
+  Serial.print("Feeder Distance: ");
+  Serial.print(newDistance);
+  Serial.println(" cm");
+
+  // Check if the distance is less than 10 cm and light the LED
+  if (newDistance < 10) {
+    digitalWrite(LED_PIN, HIGH); // Turn on the LED
+    Serial.println("LED ON");
+  } else {
+    digitalWrite(LED_PIN, LOW); // Turn off the LED
+    Serial.println("LED OFF");
+  }
 
   // Request temperature readings
   sensors.requestTemperatures();
@@ -126,9 +161,9 @@ void loop() {
     int sensorValue2 = analogRead(photodiodePin2); // Read the analog value from the second photodiode
     outputValue2 = mapSensorValue(sensorValue2); // Map the sensor value to the desired output range using calibration points
 
-    digitalWrite(ledPin, HIGH); // Turn on the LED (optional, for testing)
+    digitalWrite(testLedPin, HIGH); // Turn on the test LED (optional)
     delay(100); // Delay for stability
-    digitalWrite(ledPin, LOW); // Turn off the LED (optional, for testing)
+    digitalWrite(testLedPin, LOW); // Turn off the test LED (optional)
 
     // Print the output values to the serial monitor
     Serial.print("Photodiode 1 Output Value: ");
