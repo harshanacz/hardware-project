@@ -26,8 +26,9 @@ Servo myServo;
 // RTC
 RTC_DS3231 rtc;
 
-// Photodiode
-const int photodiodePin = 35; // Define the pin connected to the BPW34 photodiode
+// Photodiodes
+const int photodiodePin1 = 35; // Define the pin connected to the first BPW34 photodiode
+const int photodiodePin2 = 34; // Define the pin connected to the second BPW34 photodiode
 const int ledPin = 2; // Define an LED pin for testing (optional)
 
 // Define calibration points (analog readings and corresponding output values)
@@ -39,6 +40,11 @@ const int calibrationPoints[][2] = {
   {1500, 7500},   // Analog reading 1500 corresponds to output 7500 (good light condition)
   {3000, 10000}   // Analog reading 3000 corresponds to output 10000 (best light condition)
 };
+
+unsigned long lastPhotodiodeReadTime = 0; // Variable to store the last photodiode read time
+const unsigned long photodiodeReadInterval = 5000; // 5 sec interval (60000 milliseconds)
+int outputValue1 = 0; // Global variable to store the mapped output value of the first photodiode
+int outputValue2 = 0; // Global variable to store the mapped output value of the second photodiode
 
 void setup() {
   // Start serial communication at 9600 baud
@@ -74,8 +80,9 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
-  // Initialize the photodiode pin and LED pin
-  pinMode(photodiodePin, INPUT); // Set the photodiode pin as input
+  // Initialize the photodiode pins and LED pin
+  pinMode(photodiodePin1, INPUT); // Set the first photodiode pin as input
+  pinMode(photodiodePin2, INPUT); // Set the second photodiode pin as input
   pinMode(ledPin, OUTPUT); // Set the LED pin as output for testing (optional)
 }
 
@@ -112,22 +119,31 @@ void loop() {
   int currentSecond = now.second();
 
   // Photodiode reading and output calculation
-  int sensorValue = analogRead(photodiodePin); // Read the analog value from the photodiode
-  int outputValue = mapSensorValue(sensorValue); // Map the sensor value to the desired output range using calibration points
+  if (millis() - lastPhotodiodeReadTime >= photodiodeReadInterval) {
+    int sensorValue1 = analogRead(photodiodePin1); // Read the analog value from the first photodiode
+    outputValue1 = mapSensorValue(sensorValue1); // Map the sensor value to the desired output range using calibration points
 
-  digitalWrite(ledPin, HIGH); // Turn on the LED (optional, for testing)
-  delay(100); // Delay for stability
-  digitalWrite(ledPin, LOW); // Turn off the LED (optional, for testing)
+    int sensorValue2 = analogRead(photodiodePin2); // Read the analog value from the second photodiode
+    outputValue2 = mapSensorValue(sensorValue2); // Map the sensor value to the desired output range using calibration points
 
-  // Print the output value to the serial monitor
-  Serial.print("Photodiode Output Value: ");
-  Serial.println(outputValue);
+    digitalWrite(ledPin, HIGH); // Turn on the LED (optional, for testing)
+    delay(100); // Delay for stability
+    digitalWrite(ledPin, LOW); // Turn off the LED (optional, for testing)
+
+    // Print the output values to the serial monitor
+    Serial.print("Photodiode 1 Output Value: ");
+    Serial.println(outputValue1);
+    Serial.print("Photodiode 2 Output Value: ");
+    Serial.println(outputValue2);
+
+    lastPhotodiodeReadTime = millis(); // Update the last photodiode read time
+  }
 
   static unsigned long lastRelay2Time = 0;
   static bool solenoidActive = false;
 
   // Check time range and conditions for operation
-  if ((currentHour >= 6 && currentHour < 12 && outputValue < 1200) || (temperatureC > 31.0 && (currentHour < 6 || currentHour >= 12))) {
+  if ((currentHour >= 6 && currentHour < 12 && outputValue1 < 700 && outputValue2 < 1200) || (temperatureC > 31.0 && (currentHour < 6 || currentHour >= 12))) {
     // Solenoid control
     if (solenoidActive) {
       // Solenoid is active, wait until distance is 10 cm or lower
