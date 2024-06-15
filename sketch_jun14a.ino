@@ -111,23 +111,37 @@ void loop() {
   int currentMinute = now.minute();
   int currentSecond = now.second();
 
+  // Photodiode reading and output calculation
+  int sensorValue = analogRead(photodiodePin); // Read the analog value from the photodiode
+  int outputValue = mapSensorValue(sensorValue); // Map the sensor value to the desired output range using calibration points
+
+  digitalWrite(ledPin, HIGH); // Turn on the LED (optional, for testing)
+  delay(100); // Delay for stability
+  digitalWrite(ledPin, LOW); // Turn off the LED (optional, for testing)
+
+  // Print the output value to the serial monitor
+  Serial.print("Photodiode Output Value: ");
+  Serial.println(outputValue);
+
   static unsigned long lastRelay2Time = 0;
   static bool solenoidActive = false;
 
-  if (solenoidActive) {
-    // Solenoid is active, wait until distance is 10 cm or lower
-    if (distance <= 10) {
-      // Turn off solenoid (relay 2)
-      digitalWrite(RELAY2_PIN, LOW); // Turn relay 2 on (active-low)
-      delayMicroseconds(1000000);
-      digitalWrite(RELAY2_PIN, HIGH);
-      solenoidActive = false;
-      Serial.println("Relay 2 OFF");
-      delay(200); // Add delay to prevent immediate reactivation
-    }
-  } else {
-    // Normal operation
-    if (temperatureC > 31.0) {
+  // Check time range and conditions for operation
+  if ((currentHour >= 6 && currentHour < 12 && outputValue < 1200) || (temperatureC > 31.0 && (currentHour < 6 || currentHour >= 12))) {
+    // Solenoid control
+    if (solenoidActive) {
+      // Solenoid is active, wait until distance is 10 cm or lower
+      if (distance <= 10) {
+        // Turn off solenoid (relay 2)
+        digitalWrite(RELAY2_PIN, LOW); // Turn relay 2 on (active-low)
+        delayMicroseconds(1000000);
+        digitalWrite(RELAY2_PIN, HIGH);
+        solenoidActive = false;
+        Serial.println("Relay 2 OFF");
+        delay(200); // Add delay to prevent immediate reactivation
+      }
+    } else {
+      // Normal operation
       if (distance < 40) {
         digitalWrite(RELAY1_PIN, LOW); // Turn relay 1 on (active-low)
         Serial.println("Relay 1 ON");
@@ -143,16 +157,16 @@ void loop() {
         Serial.println("Relay 2 ON");
         solenoidActive = true;
       }
-    } else {
-      digitalWrite(RELAY1_PIN, HIGH); // Turn relay 1 off (active-low)
-      Serial.println("Relay 1 OFF");
     }
-  }
 
-  // Check if relay 2 has been active for more than 100 ms (0.1 second)
-  if (solenoidActive && millis() - lastRelay2Time > 100) {
-    digitalWrite(RELAY2_PIN, HIGH); // Turn relay 2 off (active-low)
-    Serial.println("Relay 2 OFF");
+    // Check if relay 2 has been active for more than 100 ms (0.1 second)
+    if (solenoidActive && millis() - lastRelay2Time > 100) {
+      digitalWrite(RELAY2_PIN, HIGH); // Turn relay 2 off (active-low)
+      Serial.println("Relay 2 OFF");
+    }
+  } else {
+    digitalWrite(RELAY1_PIN, HIGH); // Turn relay 1 off (active-low)
+    Serial.println("Relay 1 OFF");
   }
 
   // Control additional relays based on time (swapped)
@@ -180,18 +194,6 @@ void loop() {
     myServo.write(0); // Move servo back to 0 degrees
     lastServoTime = millis(); // Update last servo activation time
   }
-
-  // Photodiode reading and output calculation
-  int sensorValue = analogRead(photodiodePin); // Read the analog value from the photodiode
-  int outputValue = mapSensorValue(sensorValue); // Map the sensor value to the desired output range using calibration points
-
-  digitalWrite(ledPin, HIGH); // Turn on the LED (optional, for testing)
-  delay(100); // Delay for stability
-  digitalWrite(ledPin, LOW); // Turn off the LED (optional, for testing)
-
-  // Print the output value to the serial monitor
-  Serial.print("Photodiode Output Value: ");
-  Serial.println(outputValue);
 
   // Wait 1 second before taking another reading
   delay(1000);
