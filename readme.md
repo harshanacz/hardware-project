@@ -36,6 +36,35 @@
 
 ## Overview:
 
+This ESP32 control system is designed to automate various tasks based on environmental conditions and time of day. Here's a simplified overview of how it operates:
+
+1. **Temperature Check:**
+   - At predefined intervals, the system checks the temperature using a DS18B20 sensor.
+   - If the temperature is 31°C or higher, or if it's between 6:00 AM and 12:00 PM, certain actions are triggered.
+
+2. **Water Level Measurement:**
+   - Ultrasonic sensors are used to measure water height at regular intervals.
+   - If the water level is below a certain threshold, actions are taken to refill or maintain the water level.
+
+3. **Light Intensity Monitoring:**
+   - Photodiodes are employed to monitor light intensity in the surroundings.
+   - Based on the light conditions, the system adjusts certain parameters or activates/deactivates components.
+
+4. **Relay Control:**
+   - Relays are used to control various devices such as pumps, heaters, or lights.
+   - Depending on the temperature, water level, and light intensity, relays are activated or deactivated.
+
+5. **Servo Motor Activation:**
+   - A servo motor is controlled to perform specific actions at predefined intervals, such as opening or closing a valve.
+
+6. **Time-Based Actions:**
+   - Certain actions are triggered based on the time of day, such as turning on lights at night or activating specific devices during specific hours.
+
+This system offers automation and control capabilities for a variety of applications, providing convenience and efficiency in managing environmental conditions and tasks.
+
+
+## Technical Overview:
+
 This project involves controlling various components using an ESP32 microcontroller. Here's a brief overview of what happens in the code:
 
 - The code starts by initializing necessary libraries and defining pin connections for different sensors, actuators, and modules.
