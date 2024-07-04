@@ -55,11 +55,11 @@ const int calibrationPoints[][2] = {
 };
 
 // Firebase project details
-#define FIREBASE_HOST "https://hardware-project-17-default-rtdb.asia-southeast1.firebasedatabase.app/"
+#define FIREBASE_HOST "#"
 #define FIREBASE_AUTH "zuNL5wdSfqulEhUTfDhCB2ViEHeIcGAu5NNrfYa4"
 
-#define WIFI_SSID "Harshana Phone"
-#define WIFI_PASSWORD "gogo2518"
+#define WIFI_SSID "Mob 4g"
+#define WIFI_PASSWORD "2345678123"
 
 unsigned long lastPhotodiodeReadTime = 0;
 const unsigned long photodiodeReadInterval = 5000;  // 5 sec interval
@@ -114,7 +114,7 @@ void setup() {
 
   pinMode(buttonPin, INPUT);
 
-  // Connect to Wi-Fi
+
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi...");
   while (WiFi.status() != WL_CONNECTED) {
@@ -135,7 +135,6 @@ void setup() {
 }
 
 void loop() {
-  Serial.println("Loop started...");
 
   // Measure water height using the ultrasonic sensor
   long duration, distance;
@@ -152,7 +151,7 @@ void loop() {
   Serial.print(distance);
   Serial.println(" cm");
 
-  // Measure distance with the new ultrasonic sensor
+  // Measure distance for Feeder Distance
   long newDuration, newDistance;
   digitalWrite(NEW_TRIG_PIN, LOW);
   delayMicroseconds(2);
@@ -167,12 +166,11 @@ void loop() {
   Serial.print(newDistance);
   Serial.println(" cm");
 
-  if (newDistance < 10) {
+ // Feeder has LOW food
+  if (newDistance > 9) {
     digitalWrite(LED_PIN, HIGH);
-    Serial.println("LED ON");
   } else {
     digitalWrite(LED_PIN, LOW);
-    Serial.println("LED OFF");
   }
 
   sensors.requestTemperatures();
@@ -183,18 +181,6 @@ void loop() {
   Serial.println(" °C");
 
   DateTime now = rtc.now();
-  Serial.print("Current RTC Time: ");
-  Serial.print(now.year(), DEC);
-  Serial.print('/');
-  Serial.print(now.month(), DEC);
-  Serial.print('/');
-  Serial.print(now.day(), DEC);
-  Serial.print(' ');
-  Serial.print(now.hour(), DEC);
-  Serial.print(':');
-  Serial.print(now.minute(), DEC);
-  Serial.print(':');
-  Serial.println(now.second(), DEC);
 
   int currentHour = now.hour();
   int currentMinute = now.minute();
@@ -207,26 +193,27 @@ void loop() {
     int sensorValue2 = analogRead(photodiodePin2);
     outputValue2 = mapSensorValue(sensorValue2);
 
-    Serial.print("Photodiode 1 Output Value: ");
-    Serial.println(outputValue1);
-    Serial.print("Photodiode 2 Output Value: ");
-    Serial.println(outputValue2);
+    Serial.println("╔══════════════════════════════════╗");
+    Serial.print("║ Photodiode 1 Output Value: ");
+    Serial.print(outputValue1);
+    Serial.println("      ║");
+    Serial.print("║ Photodiode 2 Output Value: ");
+    Serial.print(outputValue2);
+    Serial.println("      ║");
+    Serial.println("╚══════════════════════════════════╝");
 
     lastPhotodiodeReadTime = millis();
-  }
+}
+
 
   static bool solenoidActive = false;
 
-  Serial.print("Temperature: ");
-  Serial.println(temperatureC);
-  Serial.print("Current Hour: ");
-  Serial.println(currentHour);
-
-  if ((currentHour >= 6 && currentHour < 15 && outputValue1 < 700 && outputValue2 < 700)) {
-    Serial.println("Reason for relay 01 active: Photodiode values less than 400 and current hour between 6am and 3pm.");
+  if (currentHour >= 18 && currentHour < 19 && outputValue1 > 400 && outputValue1 < 650 && outputValue2 > 400 && outputValue2 < 650)
+ {
+    Serial.println("Reason for relay 01 active: Photodiode values less than 400 and current hour between 6pm and 7pm.");
     relay1Active = true;
-  } else if (temperatureC > 31.0 && (currentHour >= 6 && currentHour < 12)) {
-    Serial.println("Reason for relay 01 active: Temperature greater than 31.0 and current hour between 6am and 12pm.");
+  } else if (temperatureC > 31.0 && (currentHour >= 10 && currentHour < 16)) {
+    Serial.println("Reason for relay 01 active: Temperature greater than 31.0 and current hour between 10am and 4pm.");
     relay1Active = true;
   }
 
@@ -237,7 +224,7 @@ void loop() {
     }
 
     if (solenoidActive) {
-      if (distance <= 10) {
+      if (distance <= 15) {
         digitalWrite(RELAY2_PIN, HIGH);  // Turn off Relay 2
         solenoidActive = false;
         relay1Active = false;  // Reset the flag once the process is completed
@@ -246,7 +233,7 @@ void loop() {
         delay(200);  // Delay for stability
       }
     } else {
-      if (distance < 40) {
+      if (distance < 24) {
         digitalWrite(RELAY1_PIN, LOW);
         Serial.println("Relay 1 ON");
       } else {
@@ -264,7 +251,8 @@ void loop() {
     Serial.println("Relay 1 & 2 OFF");
   }
 
-  if (currentHour >= 20 && currentHour < 23) {
+  //Blue light
+  if (currentHour >= 20 && currentHour < 24) {
     digitalWrite(RELAY4_PIN, LOW);
     Serial.println("Relay 4 ON");
   } else {
@@ -272,7 +260,8 @@ void loop() {
     Serial.println("Relay 4 OFF");
   }
 
-  if (currentHour >= 23 || currentHour < 6) {
+  //White light 
+  if (currentHour >= 7 || currentHour < 7) {
     digitalWrite(RELAY3_PIN, LOW);
     Serial.println("Relay 3 ON");
   } else {
