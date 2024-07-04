@@ -3,6 +3,9 @@
 #include <DallasTemperature.h>
 #include <RTClib.h>
 #include <ESP32Servo.h>
+#include <FirebaseESP32.h>
+
+int eventCounter = 0;
 
 // DS18B20 Sensor
 #define ONE_WIRE_BUS 14
@@ -51,11 +54,25 @@ const int calibrationPoints[][2] = {
   { 3000, 10000 }
 };
 
+// Firebase project details
+#define FIREBASE_HOST "https://hardware-project-17-default-rtdb.asia-southeast1.firebasedatabase.app/"
+#define FIREBASE_AUTH "zuNL5wdSfqulEhUTfDhCB2ViEHeIcGAu5NNrfYa4"
+
+#define WIFI_SSID "Harshana Phone"
+#define WIFI_PASSWORD "gogo2518"
+
 unsigned long lastPhotodiodeReadTime = 0;
 const unsigned long photodiodeReadInterval = 5000;  // 5 sec interval
 int outputValue1 = 0;
 int outputValue2 = 0;
 bool relay1Active = false;
+
+// Firebase data object
+FirebaseData firebaseData;
+FirebaseConfig config;
+FirebaseAuth auth;
+
+bool relay1EventRecorded = false; // Flag to track event recording for Relay 1
 
 void setup() {
   Serial.begin(9600);
@@ -83,7 +100,8 @@ void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   if (!rtc.begin()) {
     Serial.println("Couldn't find RTC");
-    while (1);
+    while (1)
+      ;
   }
   if (rtc.lostPower()) {
     Serial.println("RTC lost power, let's set the time!");
@@ -95,6 +113,23 @@ void setup() {
   pinMode(testLedPin, OUTPUT);
 
   pinMode(buttonPin, INPUT);
+
+  // Connect to Wi-Fi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi...");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println();
+  Serial.print("Connected to Wi-Fi with IP: ");
+  Serial.println(WiFi.localIP());
+
+  // Initialize Firebase
+  config.host = FIREBASE_HOST;
+  config.signer.tokens.legacy_token = FIREBASE_AUTH;
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
 
   Serial.println("Setup completed successfully.");
 }
@@ -172,10 +207,6 @@ void loop() {
     int sensorValue2 = analogRead(photodiodePin2);
     outputValue2 = mapSensorValue(sensorValue2);
 
-    digitalWrite(testLedPin, HIGH);
-    delay(100);
-    digitalWrite(testLedPin, LOW);
-
     Serial.print("Photodiode 1 Output Value: ");
     Serial.println(outputValue1);
     Serial.print("Photodiode 2 Output Value: ");
@@ -191,20 +222,26 @@ void loop() {
   Serial.print("Current Hour: ");
   Serial.println(currentHour);
 
-  if ((currentHour >= 6 && currentHour < 10 && outputValue1 < 700 && outputValue2 < 700)) {
-    Serial.println("Reason for relay 01 active: Photodiode values less than 400 and current hour between 6 and 12.");
+  if ((currentHour >= 6 && currentHour < 15 && outputValue1 < 700 && outputValue2 < 700)) {
+    Serial.println("Reason for relay 01 active: Photodiode values less than 400 and current hour between 6am and 3pm.");
     relay1Active = true;
   } else if (temperatureC > 31.0 && (currentHour >= 6 && currentHour < 12)) {
-    Serial.println("Reason for relay 01 active: Temperature greater than 31.0 and current hour between 6 and 10.");
+    Serial.println("Reason for relay 01 active: Temperature greater than 31.0 and current hour between 6am and 12pm.");
     relay1Active = true;
   }
 
   if (relay1Active) {
+    if (!relay1EventRecorded) {
+      sendEventDataToFirebase("Relay 1 activated");
+      relay1EventRecorded = true; // Set flag to true after recording event
+    }
+
     if (solenoidActive) {
       if (distance <= 10) {
         digitalWrite(RELAY2_PIN, HIGH);  // Turn off Relay 2
         solenoidActive = false;
-        relay1Active = false; // Reset the flag once the process is completed
+        relay1Active = false;  // Reset the flag once the process is completed
+        relay1EventRecorded = false; // Reset event recorded flag
         Serial.println("Relay 2 OFF");
         delay(200);  // Delay for stability
       }
@@ -266,4 +303,21 @@ int mapSensorValue(int sensorValue) {
     }
   }
   return calibrationPoints[sizeof(calibrationPoints) / sizeof(calibrationPoints[0]) - 1][1];
+}
+
+void sendEventDataToFirebase(const char* reason) {
+  eventCounter++;
+  // Create a JSON object to hold the data
+  FirebaseJson json;
+  json.set("event", "Relay 1 Activated");
+  json.set("reason", reason);
+  json.set("count", eventCounter);
+
+  // Set the JSON object in the Realtime Database
+  if (Firebase.set(firebaseData, "/events/event" + String(eventCounter), json)) {
+    Serial.println("Event data set successfully in Firebase");
+  } else {
+    Serial.print("Failed to set event data in Firebase: ");
+    Serial.println(firebaseData.errorReason());
+  }
 }
