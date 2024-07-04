@@ -2,7 +2,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <RTClib.h>
-#include <ESP32Servo.h>  // Use ESP32Servo library
+#include <ESP32Servo.h>
 
 // DS18B20 Sensor
 #define ONE_WIRE_BUS 14
@@ -22,7 +22,7 @@ DallasTemperature sensors(&oneWire);
 // New Ultrasonic Sensor
 #define NEW_TRIG_PIN 33
 #define NEW_ECHO_PIN 32
-#define LED_PIN 2 // LED to be turned on when distance is less than 10 cm
+#define LED_PIN 2  // LED to be turned on when distance is less than 10 cm
 
 // Servo Motor
 #define SERVO_PIN 27
@@ -30,64 +30,57 @@ Servo myServo;
 
 // RTC
 RTC_DS3231 rtc;
-#define SDA_PIN 21
-#define SCL_PIN 22
+#define SDA_PIN 22
+#define SCL_PIN 21
 
 // Photodiodes
-const int photodiodePin1 = 36; // Define the pin connected to the first BPW34 photodiode
-const int photodiodePin2 = 39; // Define the pin connected to the second BPW34 photodiode
-const int testLedPin = 2; // Define an LED pin for testing (optional)
+const int photodiodePin1 = 36;
+const int photodiodePin2 = 39;
+const int testLedPin = 2;  // LED pin for testing
 
 // Extra Button
-const int buttonPin = 16; // Define the pin connected to the extra button
+const int buttonPin = 16;
 
 // Define calibration points (analog readings and corresponding output values)
 const int calibrationPoints[][2] = {
-  {50, 0},        // Analog reading 50 corresponds to output 0 (new for very low light conditions)
-  {100, 500},     // Analog reading 100 corresponds to output 500
-  {500, 2500},    // Analog reading 500 corresponds to output 2500
-  {1000, 5000},   // Analog reading 1000 corresponds to output 5000
-  {1500, 7500},   // Analog reading 1500 corresponds to output 7500 (good light condition)
-  {3000, 10000}   // Analog reading 3000 corresponds to output 10000 (best light condition)
+  { 50, 0 },
+  { 100, 500 },
+  { 500, 2500 },
+  { 1000, 5000 },
+  { 1500, 7500 },
+  { 3000, 10000 }
 };
 
-unsigned long lastPhotodiodeReadTime = 0; // Variable to store the last photodiode read time
-const unsigned long photodiodeReadInterval = 5000; // 5 sec interval (60000 milliseconds)
-int outputValue1 = 0; // Global variable to store the mapped output value of the first photodiode
-int outputValue2 = 0; // Global variable to store the mapped output value of the second photodiode
+unsigned long lastPhotodiodeReadTime = 0;
+const unsigned long photodiodeReadInterval = 5000;  // 5 sec interval
+int outputValue1 = 0;
+int outputValue2 = 0;
+bool relay1Active = false;
 
 void setup() {
-  // Start serial communication at 9600 baud
   Serial.begin(9600);
   Serial.println("Starting setup...");
 
-  // Initialize relay pins as outputs
   pinMode(RELAY1_PIN, OUTPUT);
   pinMode(RELAY2_PIN, OUTPUT);
   pinMode(RELAY3_PIN, OUTPUT);
   pinMode(RELAY4_PIN, OUTPUT);
-  digitalWrite(RELAY1_PIN, HIGH); // Ensure relay 1 is off initially (active-low)
-  digitalWrite(RELAY2_PIN, HIGH); // Ensure relay 2 is off initially (active-low)
-  digitalWrite(RELAY3_PIN, HIGH); // Ensure relay 3 is off initially (active-low)
-  digitalWrite(RELAY4_PIN, HIGH); // Ensure relay 4 is off initially (active-low)
+  digitalWrite(RELAY1_PIN, HIGH);
+  digitalWrite(RELAY2_PIN, HIGH);
+  digitalWrite(RELAY3_PIN, HIGH);
+  digitalWrite(RELAY4_PIN, HIGH);
 
-  // Initialize the ultrasonic sensor pins
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
-
-  // Initialize the new ultrasonic sensor pins
   pinMode(NEW_TRIG_PIN, OUTPUT);
   pinMode(NEW_ECHO_PIN, INPUT);
-  pinMode(LED_PIN, OUTPUT); // Initialize LED pin as output
+  pinMode(LED_PIN, OUTPUT);
 
-  // Initialize the servo motor
   myServo.attach(SERVO_PIN);
 
-  // Start up the DS18B20 sensor library
   sensors.begin();
 
-  // Initialize the RTC
-  Wire.begin(SDA_PIN, SCL_PIN); // Initialize I2C with specified SDA and SCL pins
+  Wire.begin(SDA_PIN, SCL_PIN);
   if (!rtc.begin()) {
     Serial.println("Couldn't find RTC");
     while (1);
@@ -97,20 +90,18 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
-  // Initialize the photodiode pins and test LED pin
-  pinMode(photodiodePin1, INPUT); // Set the first photodiode pin as input
-  pinMode(photodiodePin2, INPUT); // Set the second photodiode pin as input
-  pinMode(testLedPin, OUTPUT); // Set the test LED pin as output (optional)
+  pinMode(photodiodePin1, INPUT);
+  pinMode(photodiodePin2, INPUT);
+  pinMode(testLedPin, OUTPUT);
 
-  // Initialize the extra button pin
-  pinMode(buttonPin, INPUT); // Set the button pin as input
+  pinMode(buttonPin, INPUT);
 
   Serial.println("Setup completed successfully.");
 }
 
 void loop() {
   Serial.println("Loop started...");
-  
+
   // Measure water height using the ultrasonic sensor
   long duration, distance;
   digitalWrite(TRIG_PIN, LOW);
@@ -122,7 +113,6 @@ void loop() {
   duration = pulseIn(ECHO_PIN, HIGH);
   distance = duration * 0.034 / 2;
 
-  // Print the distance to the Serial Monitor
   Serial.print("Distance: ");
   Serial.print(distance);
   Serial.println(" cm");
@@ -138,148 +128,142 @@ void loop() {
   newDuration = pulseIn(NEW_ECHO_PIN, HIGH);
   newDistance = newDuration * 0.034 / 2;
 
-  // Print the new distance to the Serial Monitor with label "Feeder Distance:"
   Serial.print("Feeder Distance: ");
   Serial.print(newDistance);
   Serial.println(" cm");
 
-  // Check if the distance is less than 10 cm and light the LED
   if (newDistance < 10) {
-    digitalWrite(LED_PIN, HIGH); // Turn on the LED
+    digitalWrite(LED_PIN, HIGH);
     Serial.println("LED ON");
   } else {
-    digitalWrite(LED_PIN, LOW); // Turn off the LED
+    digitalWrite(LED_PIN, LOW);
     Serial.println("LED OFF");
   }
 
-  // Request temperature readings
   sensors.requestTemperatures();
   float temperatureC = sensors.getTempCByIndex(0);
 
-  // Print the temperature to the Serial Monitor
   Serial.print("Temperature: ");
   Serial.print(temperatureC);
   Serial.println(" °C");
 
-  // Get the current time
   DateTime now = rtc.now();
+  Serial.print("Current RTC Time: ");
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(' ');
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.println(now.second(), DEC);
+
   int currentHour = now.hour();
   int currentMinute = now.minute();
   int currentSecond = now.second();
 
-  // Photodiode reading and output calculation
   if (millis() - lastPhotodiodeReadTime >= photodiodeReadInterval) {
-    int sensorValue1 = analogRead(photodiodePin1); // Read the analog value from the first photodiode
-    outputValue1 = mapSensorValue(sensorValue1); // Map the sensor value to the desired output range using calibration points
+    int sensorValue1 = analogRead(photodiodePin1);
+    outputValue1 = mapSensorValue(sensorValue1);
 
-    int sensorValue2 = analogRead(photodiodePin2); // Read the analog value from the second photodiode
-    outputValue2 = mapSensorValue(sensorValue2); // Map the sensor value to the desired output range using calibration points
+    int sensorValue2 = analogRead(photodiodePin2);
+    outputValue2 = mapSensorValue(sensorValue2);
 
-    digitalWrite(testLedPin, HIGH); // Turn on the test LED (optional)
-    delay(100); // Delay for stability
-    digitalWrite(testLedPin, LOW); // Turn off the test LED (optional)
+    digitalWrite(testLedPin, HIGH);
+    delay(100);
+    digitalWrite(testLedPin, LOW);
 
-    // Print the output values to the serial monitor
     Serial.print("Photodiode 1 Output Value: ");
     Serial.println(outputValue1);
     Serial.print("Photodiode 2 Output Value: ");
     Serial.println(outputValue2);
 
-    lastPhotodiodeReadTime = millis(); // Update the last photodiode read time
+    lastPhotodiodeReadTime = millis();
   }
 
-  // static unsigned long lastRelay2Time = 0;
   static bool solenoidActive = false;
 
-  // Check time range and conditions for operation
-  if ((currentHour >= 6 && currentHour < 12 && outputValue1 < 700 && outputValue2 < 1200) || (temperatureC > 31.0 && (currentHour < 6 || currentHour >= 12))) {
-    // Solenoid control
+  Serial.print("Temperature: ");
+  Serial.println(temperatureC);
+  Serial.print("Current Hour: ");
+  Serial.println(currentHour);
+
+  if ((currentHour >= 6 && currentHour < 10 && outputValue1 < 700 && outputValue2 < 700)) {
+    Serial.println("Reason for relay 01 active: Photodiode values less than 400 and current hour between 6 and 12.");
+    relay1Active = true;
+  } else if (temperatureC > 31.0 && (currentHour >= 6 && currentHour < 12)) {
+    Serial.println("Reason for relay 01 active: Temperature greater than 31.0 and current hour between 6 and 10.");
+    relay1Active = true;
+  }
+
+  if (relay1Active) {
     if (solenoidActive) {
-      // Solenoid is active, wait until distance is 10 cm or lower
       if (distance <= 10) {
-        // Turn off solenoid (relay 2)
-    //  digitalWrite(RELAY2_PIN, LOW);  // Turn relay 2 on (active-low)
-  // delay(10000);  // Delay for 10 seconds
-   digitalWrite(RELAY2_PIN, HIGH);
+        digitalWrite(RELAY2_PIN, HIGH);  // Turn off Relay 2
         solenoidActive = false;
+        relay1Active = false; // Reset the flag once the process is completed
         Serial.println("Relay 2 OFF");
-        delay(200); // Add delay to prevent immediate reactivation
+        delay(200);  // Delay for stability
       }
     } else {
-      // Normal operation
       if (distance < 40) {
-        digitalWrite(RELAY1_PIN, LOW); // Turn relay 1 on (active-low)
+        digitalWrite(RELAY1_PIN, LOW);
         Serial.println("Relay 1 ON");
       } else {
-        digitalWrite(RELAY1_PIN, HIGH); // Turn relay 1 off (active-low)
+        digitalWrite(RELAY1_PIN, HIGH);
         Serial.println("Relay 1 OFF");
 
-        // Activate solenoid (relay 2) as soon as relay 1 turns off
-        digitalWrite(RELAY2_PIN, LOW);  // Turn relay 2 on (active-low)
-        // digitalWrite(RELAY4_PIN, LOW);
-  // delay(10000);  // Delay for 10 seconds
-  // digitalWrite(RELAY2_PIN, HIGH);
-       // lastRelay2Time = millis(); // Record the time when relay 2 turned on
+        digitalWrite(RELAY2_PIN, LOW);
         Serial.println("Relay 2 ON");
         solenoidActive = true;
       }
     }
-
-    // Check if relay 2 has been active for more than 100 ms (0.1 second)
-    // if (solenoidActive && millis() - lastRelay2Time > 100) {
-      // digitalWrite(RELAY2_PIN, HIGH); // Turn relay 2 off (active-low)
-    //   Serial.println("Relay 2 OFF");
-    // }
   } else {
-    digitalWrite(RELAY1_PIN, HIGH); // Turn relay 1 off (active-low)
-    Serial.println("Relay 1 OFF");
+    digitalWrite(RELAY1_PIN, HIGH);
+    digitalWrite(RELAY2_PIN, HIGH);  // Ensure Relay 2 is off
+    Serial.println("Relay 1 & 2 OFF");
   }
 
-  // Control additional relays based on time (swapped)
   if (currentHour >= 20 && currentHour < 23) {
-    digitalWrite(RELAY4_PIN, LOW); // Turn relay 4 on (active-low)
+    digitalWrite(RELAY4_PIN, LOW);
     Serial.println("Relay 4 ON");
   } else {
-    digitalWrite(RELAY4_PIN, HIGH); // Turn relay 4 off (active-low)
+    digitalWrite(RELAY4_PIN, HIGH);
     Serial.println("Relay 4 OFF");
   }
 
   if (currentHour >= 23 || currentHour < 6) {
-    digitalWrite(RELAY3_PIN, LOW); // Turn relay 3 on (active-low)
+    digitalWrite(RELAY3_PIN, LOW);
     Serial.println("Relay 3 ON");
   } else {
-    digitalWrite(RELAY3_PIN, HIGH); // Turn relay 3 off (active-low)
+    digitalWrite(RELAY3_PIN, HIGH);
     Serial.println("Relay 3 OFF");
   }
 
-  // Control servo motor for 2 seconds every minute
   static unsigned long lastServoTime = 0;
-  if (currentSecond == 0 && millis() - lastServoTime > 60000) { // Check every minute
-    myServo.write(90); // Move servo to 90 degrees
-    delay(2000); // Wait for 2 seconds
-    myServo.write(0); // Move servo back to 0 degrees
-    lastServoTime = millis(); // Update last servo activation time
+  if (currentSecond == 0 && millis() - lastServoTime > 60000) {
+    myServo.write(90);
+    delay(2000);
+    myServo.write(0);
+    lastServoTime = millis();
   }
 
-  // Check the button state
   if (digitalRead(buttonPin) == HIGH) {
-    // Perform action when the button is pressed
     Serial.println("Button Pressed");
   }
 
-  // Wait 1 second before taking another reading
   delay(1000);
 }
 
-// Function to map sensor value to desired output range using calibration points
 int mapSensorValue(int sensorValue) {
   for (int i = 0; i < sizeof(calibrationPoints) / sizeof(calibrationPoints[0]); i++) {
     if (sensorValue <= calibrationPoints[i][0]) {
-      // Linear interpolation between calibration points
-      int outputValue = map(sensorValue, calibrationPoints[i-1][0], calibrationPoints[i][0], calibrationPoints[i-1][1], calibrationPoints[i][1]);
+      int outputValue = map(sensorValue, calibrationPoints[i - 1][0], calibrationPoints[i][0], calibrationPoints[i - 1][1], calibrationPoints[i][1]);
       return outputValue;
     }
   }
-  // If sensor value exceeds the maximum calibration point, return maximum output value
   return calibrationPoints[sizeof(calibrationPoints) / sizeof(calibrationPoints[0]) - 1][1];
 }

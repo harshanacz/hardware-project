@@ -29,8 +29,8 @@ This ESP32 control system automates various tasks based on environmental conditi
 - **Signal Pin:** GPIO 27 (SERVO_PIN)
 
 ### 6. RTC (DS3231)
-- **SDA:** GPIO 21
-- **SCL:** GPIO 22
+- **SDA:** GPIO 22
+- **SCL:** GPIO 21
 
 ### 7. Photodiodes
 - **Photodiode 1:** ADC1_CH0 (GPIO 36) - photodiodePin1
