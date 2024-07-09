@@ -5,7 +5,7 @@
 #include <ESP32Servo.h>
 #include <FirebaseESP32.h>
 
-int eventCounter = 0;
+int eventCounter = 0; // this helps to send data to backend.
 
 // DS18B20 Sensor
 #define ONE_WIRE_BUS 14
@@ -30,6 +30,7 @@ DallasTemperature sensors(&oneWire);
 // Servo Motor
 #define SERVO_PIN 27
 Servo myServo;
+unsigned long servomotorBreakTime = 60000; // Break time for the servo motor
 
 // RTC
 RTC_DS3231 rtc;
@@ -39,7 +40,7 @@ RTC_DS3231 rtc;
 // Photodiodes
 const int photodiodePin1 = 36;
 const int photodiodePin2 = 39;
-const int testLedPin = 2;  // LED pin for testing
+const int feederLowLevelPin = 2;  // LED pin for feeder low level
 
 // Extra Button
 const int buttonPin = 16;
@@ -55,14 +56,13 @@ const int calibrationPoints[][2] = {
 };
 
 // Firebase project details
-#define FIREBASE_HOST "#"
+#define FIREBASE_HOST "https://hardware-project-17-default-rtdb.asia-southeast1.firebasedatabase.app/"
 #define FIREBASE_AUTH "zuNL5wdSfqulEhUTfDhCB2ViEHeIcGAu5NNrfYa4"
-
 #define WIFI_SSID "Mob 4g"
 #define WIFI_PASSWORD "2345678123"
 
 unsigned long lastPhotodiodeReadTime = 0;
-const unsigned long photodiodeReadInterval = 5000;  // 5 sec interval
+const unsigned long photodiodeReadInterval = 5000; //change the interval of the taking value - now, 5 second
 int outputValue1 = 0;
 int outputValue2 = 0;
 bool relay1Active = false;
@@ -72,12 +72,11 @@ FirebaseData firebaseData;
 FirebaseConfig config;
 FirebaseAuth auth;
 
-bool relay1EventRecorded = false; // Flag to track event recording for Relay 1
+bool relay1EventRecorded = false; // For DB
 
 void setup() {
   Serial.begin(9600);
   Serial.println("Starting setup...");
-
   pinMode(RELAY1_PIN, OUTPUT);
   pinMode(RELAY2_PIN, OUTPUT);
   pinMode(RELAY3_PIN, OUTPUT);
@@ -86,7 +85,6 @@ void setup() {
   digitalWrite(RELAY2_PIN, HIGH);
   digitalWrite(RELAY3_PIN, HIGH);
   digitalWrite(RELAY4_PIN, HIGH);
-
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(NEW_TRIG_PIN, OUTPUT);
@@ -94,7 +92,6 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
 
   myServo.attach(SERVO_PIN);
-
   sensors.begin();
 
   Wire.begin(SDA_PIN, SCL_PIN);
@@ -110,10 +107,9 @@ void setup() {
 
   pinMode(photodiodePin1, INPUT);
   pinMode(photodiodePin2, INPUT);
-  pinMode(testLedPin, OUTPUT);
+  pinMode(feederLowLevelPin, OUTPUT);
 
   pinMode(buttonPin, INPUT);
-
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi...");
@@ -166,11 +162,11 @@ void loop() {
   Serial.print(newDistance);
   Serial.println(" cm");
 
- // Feeder has LOW food
-  if (newDistance > 9) {
-    digitalWrite(LED_PIN, HIGH);
+  // Feeder has LOW food
+  if (newDistance > 12) {
+    digitalWrite(feederLowLevelPin, HIGH);
   } else {
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(feederLowLevelPin, LOW);
   }
 
   sensors.requestTemperatures();
@@ -193,55 +189,58 @@ void loop() {
     int sensorValue2 = analogRead(photodiodePin2);
     outputValue2 = mapSensorValue(sensorValue2);
 
-    Serial.println("╔══════════════════════════════════╗");
-    Serial.print("║ Photodiode 1 Output Value: ");
+    Serial.print("Photodiode 1 Output Value: ");
     Serial.print(outputValue1);
-    Serial.println("      ║");
-    Serial.print("║ Photodiode 2 Output Value: ");
+    Serial.print("Photodiode 2 Output Value: ");
     Serial.print(outputValue2);
-    Serial.println("      ║");
-    Serial.println("╚══════════════════════════════════╝");
 
     lastPhotodiodeReadTime = millis();
-}
-
+  }
 
   static bool solenoidActive = false;
 
-  if (currentHour >= 18 && currentHour < 19 && outputValue1 > 400 && outputValue1 < 650 && outputValue2 > 400 && outputValue2 < 650)
- {
-    Serial.println("Reason for relay 01 active: Photodiode values less than 400 and current hour between 6pm and 7pm.");
+  if (currentHour >= 18 && currentHour < 19 && outputValue1 < 220 &&  outputValue2 < 220) {
+    Serial.println("Relay 01 active: because Photodiode.");
     relay1Active = true;
-  } else if (temperatureC > 31.0 && (currentHour >= 10 && currentHour < 16)) {
-    Serial.println("Reason for relay 01 active: Temperature greater than 31.0 and current hour between 10am and 4pm.");
+  } else if (temperatureC > 30.0 && (currentHour >= 10 && currentHour < 16)) { //&& (currentHour >= 10 && currentHour < 16)
+    Serial.println("Relay 01 active: because Temperature.");
     relay1Active = true;
   }
 
   if (relay1Active) {
-    if (!relay1EventRecorded) {
-      sendEventDataToFirebase("Relay 1 activated");
-      relay1EventRecorded = true; // Set flag to true after recording event
+    // Database part -------------------
+    if (temperatureC > 30.0) {
+      if (!relay1EventRecorded) {
+        sendEventDataToFirebase("High or Low Temperature");
+        relay1EventRecorded = true; // Set flag to true after recording event
+      }
+    } else {
+      if (!relay1EventRecorded) {
+        sendEventDataToFirebase("Water Quality Issue");
+        relay1EventRecorded = true; // Set flag to true after recording event
+      }
     }
+    // ------------------------------
 
     if (solenoidActive) {
-      if (distance <= 15) {
-        digitalWrite(RELAY2_PIN, HIGH);  // Turn off Relay 2
+      if (distance <= 10) {
+        digitalWrite(RELAY1_PIN, HIGH);  // Turn off Relay 1
         solenoidActive = false;
         relay1Active = false;  // Reset the flag once the process is completed
         relay1EventRecorded = false; // Reset event recorded flag
-        Serial.println("Relay 2 OFF");
+        Serial.println("Relay 1 OFF");
         delay(200);  // Delay for stability
       }
     } else {
-      if (distance < 24) {
-        digitalWrite(RELAY1_PIN, LOW);
-        Serial.println("Relay 1 ON");
-      } else {
-        digitalWrite(RELAY1_PIN, HIGH);
-        Serial.println("Relay 1 OFF");
-
+      if (distance < 25) {
         digitalWrite(RELAY2_PIN, LOW);
         Serial.println("Relay 2 ON");
+      } else {
+        digitalWrite(RELAY2_PIN, HIGH);
+        Serial.println("Relay 2 OFF");
+
+        digitalWrite(RELAY1_PIN, LOW); 
+        Serial.println("Relay 1 ON");
         solenoidActive = true;
       }
     }
@@ -251,8 +250,17 @@ void loop() {
     Serial.println("Relay 1 & 2 OFF");
   }
 
-  //Blue light
-  if (currentHour >= 20 && currentHour < 24) {
+  // Always check the distance and turn off Relay 01 if the distance is less than 10 cm
+  if (distance < 8) {
+    digitalWrite(RELAY1_PIN, HIGH);
+    solenoidActive = false;
+    relay1Active = false;  // Reset the flag once the process is completed
+    relay1EventRecorded = false; // Reset event recorded flag
+    Serial.println("Relay 1 OFF (Distance < 8 cm)");
+  }
+
+  // Blue light
+  if (currentHour >= 20 && currentHour < 21) {
     digitalWrite(RELAY4_PIN, LOW);
     Serial.println("Relay 4 ON");
   } else {
@@ -260,8 +268,8 @@ void loop() {
     Serial.println("Relay 4 OFF");
   }
 
-  //White light 
-  if (currentHour >= 7 || currentHour < 7) {
+  // White light 
+  if (currentHour >= 7 || currentHour < 19) {
     digitalWrite(RELAY3_PIN, LOW);
     Serial.println("Relay 3 ON");
   } else {
@@ -270,15 +278,16 @@ void loop() {
   }
 
   static unsigned long lastServoTime = 0;
-  if (currentSecond == 0 && millis() - lastServoTime > 60000) {
-    myServo.write(90);
-    delay(2000);
-    myServo.write(0);
-    lastServoTime = millis();
-  }
-
-  if (digitalRead(buttonPin) == HIGH) {
-    Serial.println("Button Pressed");
+  if ((currentHour == 8 && currentMinute == 0) || (currentHour == 17 && currentMinute == 50)) {
+    if (millis() - lastServoTime > servomotorBreakTime) {
+      for (int i = 0; i < 4; i++) {
+        myServo.write(180);
+        delay(2000);
+        myServo.write(0);
+        delay(2000);
+      }
+      lastServoTime = millis();
+    }
   }
 
   delay(1000);
@@ -298,9 +307,10 @@ void sendEventDataToFirebase(const char* reason) {
   eventCounter++;
   // Create a JSON object to hold the data
   FirebaseJson json;
-  json.set("event", "Relay 1 Activated");
+  json.set("event", "Cleaning");
   json.set("reason", reason);
   json.set("count", eventCounter);
+  json.set("datetime", rtc.now().timestamp(DateTime::TIMESTAMP_FULL));  
 
   // Set the JSON object in the Realtime Database
   if (Firebase.set(firebaseData, "/events/event" + String(eventCounter), json)) {
