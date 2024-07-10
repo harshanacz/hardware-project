@@ -47,12 +47,11 @@ const int buttonPin = 16;
 
 // Define calibration points (analog readings and corresponding output values)
 const int calibrationPoints[][2] = {
-  { 50, 0 },
-  { 100, 500 },
-  { 500, 2500 },
-  { 1000, 5000 },
-  { 1500, 7500 },
-  { 3000, 10000 }
+  {0, 0},           // Analog reading 0 corresponds to output 0 (Very Low Light)
+  {87, 500},        // Analog reading 87 corresponds to output 500 (Low Light)
+  {217, 1000},      // Analog reading 217 corresponds to output 1000 (Medium Light)
+  {326, 2000},      // Analog reading 326 corresponds to output 2000 (High Light)
+  {434, 3000}       // Analog reading 434 corresponds to output 3000 (Maximum Light)
 };
 
 // Firebase project details
